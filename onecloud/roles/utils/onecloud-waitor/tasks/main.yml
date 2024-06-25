@@ -1,0 +1,42 @@
+- name: Copy wait-onecloud-services.sh
+  template:
+    src: "wait-onecloud-services.sh.j2"
+    dest: "/opt/yunion/bin/wait-onecloud-services.sh"
+    mode: '0755'
+  vars:
+    ENV_KUBECONFIG: "{{ ENV_KUBECONFIG | default('/etc/kubernetes/admin.conf') }}"
+    K3S_CMDLINE_PREFIX: "{{ K3S_CMDLINE_PREFIX | default('k8s') }}"
+
+- name: "Execute `/opt/yunion/bin/wait-onecloud-services.sh` to wait essential services to be running. You can open another terminal and execute `kubectl get pods -n onecloud -w` to watch the process."
+  shell: "bash /opt/yunion/bin/wait-onecloud-services.sh {{ extra_onecloud_services | default('') }}"
+  async: 3600  # 1 hour timeout
+  poll: 0
+  register: script_result
+
+# - debug: var=wait_onecloud_services.stdout_lines
+
+# - name: Run k8s status script asynchronously
+#   command: "{{ script_path }}"
+#   async: 3600  # 1 hour timeout
+#   poll: 0
+#   register: script_result
+
+- name: Check script status and print logs
+  async_status:
+    jid: "{{ script_result.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 360  # Check every 10 seconds for 1 hour
+  delay: 10
+  changed_when: false
+  check_mode: no
+
+- name: Print script output
+  debug:
+    var: job_result.stdout_lines
+  when: job_result.stdout_lines is defined
+
+- name: Print script error output
+  debug:
+    var: job_result.stderr_lines
+  when: job_result.stderr_lines is defined

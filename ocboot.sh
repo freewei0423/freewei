@@ -38,7 +38,18 @@ if is_ocboot_subcmd $1; then
     CMD="ocboot.py"
 fi
 
-buildah run -t \
+buildah_version=$(buildah --version | awk '{print $3}')
+buildah_version_major=$(echo $buildah_version | awk -F. '{print $1}')
+buildah_version_minor=$(echo $buildah_version | awk -F. '{print $2}')
+
+buildah_extra_args=()
+
+echo buildah_version $buildah_version
+if [[ $buildah_version_major -eq 1 ]] && [[ "$buildah_version_minor" -gt 23 ]]; then
+    buildah_extra_args+=(-e ANSIBLE_VERBOSITY=${ANSIBLE_VERBOSITY:-0})
+fi
+
+buildah run -t "${buildah_extra_args[@]}" \
     --net=host \
     -v "$HOME/.ssh:/root/.ssh" \
     -v "$(pwd):/ocboot" \
