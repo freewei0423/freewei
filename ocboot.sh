@@ -1,6 +1,7 @@
 #!/bin/bash
 
-set -e
+set -ex
+export PS4='+(${BASH_SOURCE}:${LINENO}): ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 
 REGISTRY=${REGISTRY:-registry.cn-beijing.aliyuncs.com/yunionio}
 VERSION=${VERSION:-v4-k3s.4}
@@ -38,7 +39,18 @@ if is_ocboot_subcmd $1; then
     CMD="ocboot.py"
 fi
 
-buildah run -t \
+buildah_version=$(buildah --version | awk '{print $3}')
+buildah_version_major=$(echo $buildah_version | awk -F. '{print $1}')
+buildah_version_minor=$(echo $buildah_version | awk -F. '{print $2}')
+
+buildah_extra_args=()
+
+echo buildah_version $buildah_version
+if [[ $buildah_version_major -eq 1 ]] && [[ "$buildah_version_minor" -gt 11 ]]; then
+    buildah_extra_args+=(-e ANSIBLE_VERBOSITY=${ANSIBLE_VERBOSITY:-0})
+fi
+
+buildah run -t "${buildah_extra_args[@]}" \
     --net=host \
     -v "$HOME/.ssh:/root/.ssh" \
     -v "$(pwd):/ocboot" \

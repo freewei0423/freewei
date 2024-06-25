@@ -524,7 +524,7 @@ def main():
             install_packages(['python3-pip'])
             os.system('python3 -m pip install pyyaml')
             ensure_python3_yaml('redhat')
-
+    pr_green(f'ip_conf: {ip_conf}; path.isfile(ip_conf): {path.isfile(ip_conf)}; path.getsize(ip_conf): {path.getsize(ip_conf)}')
     if match_ip4addr(ip_conf):
         conf = generate_config(ip_conf, stackDict.get(stack), user_dns)
     elif path.isfile(ip_conf) and path.getsize(ip_conf) > 0:
