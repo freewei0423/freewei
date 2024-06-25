@@ -2,23 +2,23 @@
 
 export KUBECONFIG="{{ ENV_KUBECONFIG }}"
 
-services="
-onecloud-operator
-keystone
-default-region-
-scheduler
-glance
-apigateway
-kubeserver
-default-web-
-cloudmon
-webconsole
-climc
-"
+services=(
+	onecloud-operator
+	keystone
+	default-region-
+	scheduler
+	glance
+	apigateway
+	kubeserver
+	default-web-
+	cloudmon
+	webconsole
+	climc
+)
 
 check_svc() {
 	local svc="$1"
-    local status=$({{ K3S_CMDLINE_PREFIX }} kubectl get pods -n onecloud | grep "$svc" | head -n 1 | awk '{print $3}')
+	local status=$({{ K3S_CMDLINE_PREFIX }} kubectl get pods -n onecloud | grep "$svc" | head -n 1 | awk '{print $3}')
 	if [[ "$status" == "Running" ]]; then
 		echo "true"
 	else
@@ -43,7 +43,10 @@ wait_svc() {
 	done
 }
 
-for svc in $services; do
+# accept arguments from commandline;
+# such as wait-onecloud-services.sh onecloud-operator
+# if arguments empty, using array services
+for svc in ${@:-${services[@]}}; do
 	echo "waiting service pod $svc to be running"
 	wait_svc "$svc"
 done

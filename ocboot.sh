@@ -1,7 +1,6 @@
 #!/bin/bash
 
-set -ex
-export PS4='+(${BASH_SOURCE}:${LINENO}): ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
+set -e
 
 REGISTRY=${REGISTRY:-registry.cn-beijing.aliyuncs.com/yunionio}
 VERSION=${VERSION:-v4-k3s.4}
@@ -46,7 +45,7 @@ buildah_version_minor=$(echo $buildah_version | awk -F. '{print $2}')
 buildah_extra_args=()
 
 echo buildah_version $buildah_version
-if [[ $buildah_version_major -eq 1 ]] && [[ "$buildah_version_minor" -gt 11 ]]; then
+if [[ $buildah_version_major -eq 1 ]] && [[ "$buildah_version_minor" -gt 23 ]]; then
     buildah_extra_args+=(-e ANSIBLE_VERBOSITY=${ANSIBLE_VERBOSITY:-0})
 fi
 

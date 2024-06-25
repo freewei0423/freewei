@@ -62,7 +62,7 @@
   environment:
     KUBECONFIG: "{{ ENV_KUBECONFIG }}"
   shell: |
-    {{ K3S_CMDLINE_PREFIX }} kubectl patch deployment -n onecloud onecloud-operator --patch "$(cat /tmp/turn-on-operator-clear-component.patch.yml)" # && rm -f /tmp/turn-on-operator-clear-component.patch.yml
+    {{ K3S_CMDLINE_PREFIX }} kubectl patch deployment -n onecloud onecloud-operator --patch "$(cat /tmp/turn-on-operator-clear-component.patch.yml)" && rm -f /tmp/turn-on-operator-clear-component.patch.yml
   become: yes
   args:
     executable: /bin/bash
@@ -103,7 +103,6 @@
   when:
   - controllable_upgrade | default(false) | bool == true
 
-- debug: msg="{{ image_repository | default('registry.cn-beijing.aliyuncs.com/yunion')}}/onecloud-operator:{{ upgrade_onecloud_version }}"
 # use async task to upgrade, ref: https://docs.ansible.com/ansible/latest/user_guide/playbooks_async.html
 - name: primary master node | Use ocadm upgrade version "{{ current_onecloud_version }}" to "{{ upgrade_onecloud_version }}"
   environment:
@@ -119,28 +118,25 @@
       /opt/yunion/bin/climc-ee update-record-create --version {{ upgrade_onecloud_version }} \
         --registry {{ image_repository | default('registry.cn-beijing.aliyuncs.com/yunion')}} || :
     fi
-    # TODO
     # https://github.com/yunionio/ocadm/blob/e86c5de305846e3158673cb3fb4c89408a823066/pkg/phases/cluster/cluster.go#L701
 
-    KUBECONFIG="{{ ENV_KUBECONFIG }}" k3s kubectl -n onecloud patch deployment onecloud-operator --type=json \
+    KUBECONFIG="{{ ENV_KUBECONFIG }}" {{ K3S_CMDLINE_PREFIX }} kubectl -n onecloud patch deployment onecloud-operator --type=json \
       -p '[
         {"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "{{ image_repository | default('registry.cn-beijing.aliyuncs.com/yunion')}}/onecloud-operator:{{ upgrade_onecloud_version }}"},
         {"op": "replace", "path": "/spec/template/spec/containers/0/command", "value": ["/bin/onecloud-controller-manager", "-disable-init-crd", "-clear-component"]} ## disable-init-cr
       ]'
 
     # wait operator ...
-
-    KUBECONFIG="{{ ENV_KUBECONFIG }}" k3s kubectl patch onecloudclusters -n onecloud default --type merge --patch '
+    waiter=/opt/yunion/bin/wait-onecloud-services.sh
+    [[ -x "$waiter" ]] && $waiter "onecloud-operator"
+    KUBECONFIG="{{ ENV_KUBECONFIG }}" {{ K3S_CMDLINE_PREFIX }} kubectl patch onecloudclusters -n onecloud default --type merge --patch '
     {
       "spec": {
         "version": "{{ upgrade_onecloud_version }}",
         "imageRepository": "{{ image_repository | default('registry.cn-beijing.aliyuncs.com/yunion')}}"
       }
     }'
-
-    KUBECONFIG="{{ ENV_KUBECONFIG }}" k3s kubectl rollout restart deployment -n onecloud onecloud-operator
-    # ocadm 的 wait 逻辑，可以用 wait-onecloud-services.sh 这个脚本来实现
-    bash /opt/yunion/bin/wait-onecloud-services.sh
+    KUBECONFIG="{{ ENV_KUBECONFIG }}" {{ K3S_CMDLINE_PREFIX }} kubectl rollout restart deployment -n onecloud onecloud-operator
   # 30 minutes timeout
   become: yes
   async: 1800
@@ -160,6 +156,13 @@
   retries: 30
   delay: 60
 
+- debug: var=ocadm_update_register
+- debug: var=ocadm_update_result
+
+- name: wait onecloud to be ready upgrade
+  include_role:
+    name: utils/onecloud-waitor
+
 - name: Copy turn-off-operator-clear-component patch to /tmp/turn-off-operator-clear-component.patch.yml
   template:
     src: "turn-off-operator-clear-component.patch.yml.j2"
@@ -171,7 +174,7 @@
   environment:
     KUBECONFIG: "{{ ENV_KUBECONFIG }}"
   shell: |
-    {{ K3S_CMDLINE_PREFIX }} kubectl patch deployment -n onecloud onecloud-operator --patch "$(cat /tmp/turn-off-operator-clear-component.patch.yml)" # && rm -f /tmp/turn-off-operator-clear-component.patch.yml
+    {{ K3S_CMDLINE_PREFIX }} kubectl patch deployment -n onecloud onecloud-operator --patch "$(cat /tmp/turn-off-operator-clear-component.patch.yml)" && rm -f /tmp/turn-off-operator-clear-component.patch.yml
   become: yes
   args:
     executable: /bin/bash
